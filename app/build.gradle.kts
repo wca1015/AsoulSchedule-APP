@@ -34,7 +34,8 @@ android {
 
     defaultConfig {
         applicationId = "com.example.asoul"
-        minSdk = 35
+        // 支持 Android 8.0+（API 26）：java.time 在 API 26 原生可用，无需脱糖
+        minSdk = 26
         targetSdk = 37
         versionCode = 2
         versionName = "1.1"
@@ -52,7 +53,7 @@ android {
         }
     }
     compileOptions {
-        // java.time API（LocalDate/LocalTime）在 minSdk 35 原生可用
+        // java.time API（LocalDate/LocalTime）在 minSdk 26 原生可用
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
