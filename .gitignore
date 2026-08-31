@@ -22,3 +22,6 @@ local.properties
 
 # 发布构建产物（release APK / baselineProfiles / 输出元数据）
 /app/release/
+
+# VS Code 本地配置（含本机 JAVA_HOME 路径，不提交）
+/.vscode/
