@@ -2,7 +2,7 @@
 
 一个面向 **A-SOUL** 粉丝的直播周程表日历 App：查看每周直播安排、左右划切周回看往期直播录像、按成员/团播过滤、一键写入系统日历、唤起 B 站直播间，并为「周程表海报 OCR 自动识别」预留了完整的解析管线。
 
-> 应用名：`Asoul` ｜ 包名：`com.example.asoul` ｜ 当前版本：`1.0 (versionCode 1)`
+> 应用名：`Asoul` ｜ 包名：`com.example.asoul` ｜ 当前版本：`1.1 (versionCode 2)`
 
 ---
 
