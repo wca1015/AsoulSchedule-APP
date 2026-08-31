@@ -1,0 +1,24 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Release 签名密钥库与凭据（禁止提交）
+/keystore/
+
+# Server 文件夹（不推送到仓库）
+/Server/
+
+# 发布构建产物（release APK / baselineProfiles / 输出元数据）
+/app/release/
