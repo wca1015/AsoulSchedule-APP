@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.asoul.AsoulApplication
+import com.example.asoul.data.remote.dto.AppVersionDto
 import com.example.asoul.data.MockScheduleData
 import com.example.asoul.data.model.FlashLiveEvent
 import com.example.asoul.data.model.LiveSchedule
@@ -39,6 +40,10 @@ data class MainUiState(
     val latestAppliedWeekStart: LocalDate? = null,
     /** 本周是否已注入开发示例数据（UI 展示「示例数据」徽标，便于与真实数据区分）。 */
     val isMockData: Boolean = false,
+    /** 待提示的 App 更新信息（发现新版本时非空，驱动更新弹窗）。 */
+    val pendingUpdate: AppVersionDto? = null,
+    /** 更新 APK 是否正在下载。 */
+    val updateDownloading: Boolean = false,
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -97,7 +102,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // 旧实现中示例数据注入与网络拉取并发赛跑：两者谁先完成决定用户看到示例假数据还是空白，
         // 不同设备表现不一致。现收拢为单一引导协程，保证结果确定。
         viewModelScope.launch { bootstrap() }
-    }
+        // App 更新检查：缓存引导完成后静默执行，不阻塞首屏；发现新版本则弹窗提示。
+        // 检查器内部已做「版本 > 本地 / 未跳过 / 当日未提示」三重过滤。
+        viewModelScope.launch {
+            app.cacheBootstrap.await()
+            val update = runCatching { app.appUpdateChecker.check() }.getOrNull()
+            if (update != null) {
+                _state.value = _state.value.copy(pendingUpdate = update)
+            }
+        }    }
 
     /**
      * 启动引导：等缓存加载完成 → 首拉一次周程表 → 完全无数据时才注入示例数据。
@@ -218,6 +231,50 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             true
         } else {
             false
+        }
+    }
+
+    // ===== App 更新 =====
+
+    /** 用户选择「跳过此版本」：记录该版本，之后不再提示。 */
+    fun skipThisVersion() {
+        val version = _state.value.pendingUpdate?.versionCode ?: return
+        app.appUpdateStore.markSkipped(version)
+        _state.value = _state.value.copy(pendingUpdate = null)
+    }
+
+    /** 关闭更新弹窗（稍后再说）：今日不再打扰，明天重新提示。 */
+    fun dismissUpdate() {
+        _state.value = _state.value.copy(pendingUpdate = null)
+    }
+
+    /** 用户选择「立即更新」：下载 APK 并调起系统安装页。 */
+    fun updateNow() {
+        val update = _state.value.pendingUpdate ?: return
+        val updater = app.appUpdater
+        // 先确认「安装未知应用」权限：缺失时引导去系统设置，不进入下载流程
+        if (!updater.canInstallUnknownApps()) {
+            updater.openInstallPermissionSettings()
+            showSnackbar("请在系统设置中允许「安装未知应用」后，再点立即更新")
+            return
+        }
+        viewModelScope.launch {
+            _state.value = _state.value.copy(updateDownloading = true)
+            showSnackbar("正在下载新版本…")
+            val file = updater.download(update.apkUrl)
+            _state.value = _state.value.copy(updateDownloading = false)
+            if (file == null) {
+                showSnackbar("下载失败，请检查网络后重试")
+                return@launch
+            }
+            if (updater.install(file)) {
+                // 调起系统安装页后关闭弹窗（安装完成由系统引导，App 无法感知）
+                _state.value = _state.value.copy(pendingUpdate = null)
+            } else {
+                // 下载完成但权限在下载期间被撤销等极端情况：再引导一次
+                updater.openInstallPermissionSettings()
+                showSnackbar("请在系统设置中允许「安装未知应用」后，再点立即更新")
+            }
         }
     }
 

@@ -13,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.asoul.ui.dialog.AppUpdateDialog
 import com.example.asoul.ui.screen.TimelineScreen
 
 /**
@@ -32,6 +33,17 @@ fun AsoulApp(mainViewModel: MainViewModel = viewModel()) {
             snackbarHostState.showSnackbar(message)
             mainViewModel.consumeSnackbar()
         }
+    }
+
+    // App 更新弹窗：检测到新版本时展示（立即更新 / 跳过此版本 / 稍后）
+    state.pendingUpdate?.let { update ->
+        AppUpdateDialog(
+            update = update,
+            downloading = state.updateDownloading,
+            onUpdate = mainViewModel::updateNow,
+            onSkipThisVersion = mainViewModel::skipThisVersion,
+            onDismiss = mainViewModel::dismissUpdate,
+        )
     }
 
     Scaffold(

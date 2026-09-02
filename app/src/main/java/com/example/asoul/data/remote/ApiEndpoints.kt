@@ -20,6 +20,12 @@ object ApiEndpoints {
     const val FLASH_JSON = BASE_URL + "flash.json"
 
     /**
+     * App 版本清单端点（更新检查）。
+     * 发布新 APK 时由 Server/scripts/upload_app.py 生成并上传 OSS。
+     */
+    const val APP_VERSION_JSON = BASE_URL + "app_version.json"
+
+    /**
      * 往日周周程表端点：`week/{week_start}.json`。
      *
      * 服务端将 archive 归档镜像到 OSS（含录播回填），客户端按需拉取，

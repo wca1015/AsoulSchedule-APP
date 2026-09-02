@@ -36,6 +36,9 @@ class ScheduleApiClient {
      */
     suspend fun fetchWeek(weekUrl: String): String? = get(weekUrl)
 
+    /** 拉取 App 版本清单 JSON 原文；失败返回 null。 */
+    suspend fun fetchAppVersion(): String? = get(ApiEndpoints.APP_VERSION_JSON)
+
     /** GET 请求，挂起等待响应；非 2xx / IO 异常均返回 null。 */
     private suspend fun get(url: String): String? = suspendCancellableCoroutine { cont ->
         val call = client.newCall(Request.Builder().url(url).build())

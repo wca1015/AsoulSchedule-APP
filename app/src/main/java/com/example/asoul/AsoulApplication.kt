@@ -8,6 +8,9 @@ import com.example.asoul.data.ScheduleRepository
 import com.example.asoul.data.remote.LatestScheduleFetcher
 import com.example.asoul.data.remote.ScheduleApiClient
 import com.example.asoul.data.remote.ScheduleSyncManager
+import com.example.asoul.data.update.AppUpdateChecker
+import com.example.asoul.data.update.AppUpdateStore
+import com.example.asoul.data.update.AppUpdater
 import com.example.asoul.ocr.FakeOcrEngine
 import com.example.asoul.ocr.OcrEngine
 import kotlinx.coroutines.CompletableDeferred
@@ -47,6 +50,19 @@ class AsoulApplication : Application() {
     val latestFetcher: LatestScheduleFetcher by lazy {
         LatestScheduleFetcher(apiClient, cacheStore, repository)
     }
+
+    // ===== App 更新检查 / 安装 =====
+
+    /** 更新提示记忆（跳过版本 / 当日已提示）。 */
+    val appUpdateStore: AppUpdateStore by lazy { AppUpdateStore(this) }
+
+    /** 更新检查器（启动后静默拉取版本清单比对，发现新版本才提示）。 */
+    val appUpdateChecker: AppUpdateChecker by lazy {
+        AppUpdateChecker(apiClient, appUpdateStore)
+    }
+
+    /** APK 下载与安装执行器。 */
+    val appUpdater: AppUpdater by lazy { AppUpdater(this) }
 
     /** 前台轮询调度（周程表 1h / 突击直播 5min，回前台即时拉取）。 */
     private val syncManager: ScheduleSyncManager by lazy {

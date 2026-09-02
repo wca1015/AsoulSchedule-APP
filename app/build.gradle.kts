@@ -59,6 +59,8 @@ android {
     }
     buildFeatures {
         compose = true
+        // App 更新检查需读取 BuildConfig.VERSION_CODE / VERSION_NAME
+        buildConfig = true
     }
 }
 
