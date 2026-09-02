@@ -37,8 +37,8 @@ android {
         // 支持 Android 8.0+（API 26）：java.time 在 API 26 原生可用，无需脱糖
         minSdk = 26
         targetSdk = 37
-        versionCode = 3
-        versionName = "1.2"
+        versionCode = 4
+        versionName = "1.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
