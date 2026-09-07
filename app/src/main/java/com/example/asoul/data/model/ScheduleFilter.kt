@@ -24,7 +24,7 @@ sealed class ScheduleFilter {
 fun LiveSchedule.matches(filter: ScheduleFilter): Boolean = when (filter) {
     ScheduleFilter.All -> true
     is ScheduleFilter.MemberFilter ->
-        (memberId == filter.memberId) ||
-            (isGroupLive && MemberCatalog.participantsOf(groupType).any { it.id == filter.memberId })
+        // 单播匹配本人；团播 / 一期双人直播展开参与成员后匹配
+        resolvedParticipantIds().any { it == filter.memberId }
     is ScheduleFilter.GroupFilter -> groupType == filter.groupType
 }

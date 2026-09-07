@@ -80,9 +80,18 @@ data class LiveSchedule(
     val calendarEventId: Long? = null,
     /** 直播录像 BV 号：往日已结束的直播在录播上传后填充，供「录像」标签跳转。 */
     val recordingBvid: String? = null,
+    /**
+     * 参与成员 id 列表（服务端数据携带）：
+     * - 一期双人直播：两个成员 id（如 贝拉&乃琳 → [bella, eileen]）
+     * - 其余场景留空，由 [resolvedParticipantIds] 按团播分组 / 单播成员推导
+     */
+    val participantIds: List<String> = emptyList(),
 ) {
     /** 兼容旧逻辑：是否为团播。 */
     val isGroupLive: Boolean get() = groupType != GroupType.NONE
+
+    /** 是否为多人参与（团播或一期双人直播）。 */
+    val isMultiLive: Boolean get() = isGroupLive || participantIds.size > 1
 
     /** 需要以标签呈现的「形式/性质」标签；普通直播返回 null。 */
     val formatTag: StreamFormat? get() = format.takeIf { it != StreamFormat.NORMAL }
@@ -90,6 +99,20 @@ data class LiveSchedule(
     /** 在指定成员库中解析出成员对象；未匹配到则返回 null。 */
     fun member(catalog: List<Member> = MemberCatalog.ALL): Member? =
         memberId?.let { id -> catalog.firstOrNull { it.id == id } }
+
+    /**
+     * 实际参与成员 id（供成员过滤 / 详情参与成员展示）：
+     * 双人直播用 [participantIds]；团播展开为分组全员；单播回退 [memberId]。
+     */
+    fun resolvedParticipantIds(): List<String> = when {
+        participantIds.isNotEmpty() -> participantIds
+        groupType != GroupType.NONE -> MemberCatalog.participantsOf(groupType).map { it.id }
+        else -> listOfNotNull(memberId)
+    }
+
+    /** 实际参与成员对象列表（空 = 无法解析）。 */
+    fun resolvedParticipants(catalog: List<Member> = MemberCatalog.ALL): List<Member> =
+        resolvedParticipantIds().mapNotNull { id -> catalog.firstOrNull { it.id == id } }
 }
 
 /** 直播是否已结束（往日日程用于判断是否展示「录像」入口）。 */

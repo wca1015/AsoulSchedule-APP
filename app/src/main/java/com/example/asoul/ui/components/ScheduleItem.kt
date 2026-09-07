@@ -103,13 +103,16 @@ fun LiveEventCard(
     onCardClick: (LiveSchedule) -> Unit = {},
 ) {
     val context = LocalContext.current
-    val member = schedule.member(MemberCatalog.ALL)
+    val participants = schedule.resolvedParticipants(MemberCatalog.ALL)
+    // 单人直播取本人；双人/团播取首位参与成员（主要作取色用途）
+    val member = participants.firstOrNull() ?: schedule.member(MemberCatalog.ALL)
     val accent = when (schedule.groupType) {
         GroupType.XINYI_SINUO ->
             MemberCatalog.SECOND_GEN.firstOrNull { it.id == "xinyi" }?.color ?: Color.Gray
         GroupType.ASOUL -> Color(0xFF8E7CC3)
         GroupType.ZHIJIANG_VARIETY -> AsoulColors.BadgeGroup
-        GroupType.NONE -> member?.color ?: Color.Gray
+        // 一期双人直播：复用 Asoul 一期团播主色，避免归属到某一成员单色
+        GroupType.NONE -> if (schedule.isMultiLive) Color(0xFF8E7CC3) else member?.color ?: Color.Gray
     }
     val isDark = isSystemInDarkTheme()
     val bgAlpha = if (isDark) 0.15f else 0.08f
@@ -140,8 +143,10 @@ fun LiveEventCard(
                         .defaultMinSize(minHeight = 88.dp)
                         .background(accent),
                 )
-                // 头像：单人用成员图片，团播用团播专属头像，其余星标占位
-                val avatarRes = schedule.groupType.avatarRes ?: member?.avatarRes
+                // 头像：单人用成员图片，团播用团播专属头像，
+                // 一期双人直播无专属头像资源 → 用 Asoul 一期团播头像兜底（副标题有成员名）；其余星标占位
+                val avatarRes = schedule.groupType.avatarRes
+                    ?: if (schedule.isMultiLive) GroupType.ASOUL.avatarRes else member?.avatarRes
                 if (avatarRes != null) {
                     androidx.compose.foundation.Image(
                         painter = androidx.compose.ui.res.painterResource(avatarRes),

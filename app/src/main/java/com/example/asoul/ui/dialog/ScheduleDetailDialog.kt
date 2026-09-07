@@ -65,15 +65,17 @@ fun ScheduleDetailDialog(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    val member = schedule.member(MemberCatalog.ALL)
+    val participants = schedule.resolvedParticipants(MemberCatalog.ALL)
+    // 单人直播取本人；双人/团播取首位参与成员（取色用途）
+    val member = participants.firstOrNull() ?: schedule.member(MemberCatalog.ALL)
     val accent = when (schedule.groupType) {
         GroupType.XINYI_SINUO ->
             MemberCatalog.SECOND_GEN.firstOrNull { it.id == "xinyi" }?.color ?: Color.Gray
         GroupType.ASOUL -> Color(0xFF8E7CC3)
         GroupType.ZHIJIANG_VARIETY -> AsoulColors.BadgeGroup
-        GroupType.NONE -> member?.color ?: Color.Gray
+        // 一期双人直播：复用 Asoul 一期团播主色
+        GroupType.NONE -> if (schedule.isMultiLive) Color(0xFF8E7CC3) else member?.color ?: Color.Gray
     }
-    val participants = MemberCatalog.participantsOf(schedule.groupType)
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -106,8 +108,9 @@ fun ScheduleDetailDialog(
 
                 // ===== 头部：头像 + 标题 + 副标题 =====
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // 头像
-                    val avatarRes = schedule.groupType.avatarRes ?: member?.avatarRes
+                    // 头像：单人用成员图片；团播用分组头像；一期双人用 Asoul 一期团播头像兜底
+                    val avatarRes = schedule.groupType.avatarRes
+                        ?: if (schedule.isMultiLive) GroupType.ASOUL.avatarRes else member?.avatarRes
                     if (avatarRes != null) {
                         Image(
                             painter = painterResource(avatarRes),
@@ -151,7 +154,11 @@ fun ScheduleDetailDialog(
                 DetailRow("时间", "${schedule.date.format(DETAIL_DATE_FORMAT)} ${Weeks.weekdayLabel(schedule.date)} ${schedule.time.format(DateTimeFormatter.ofPattern("HH:mm"))}")
                 DetailRow(
                     "类型",
-                    if (schedule.isGroupLive) "团播 · ${schedule.groupType.label}" else "单播",
+                    when {
+                        schedule.isGroupLive -> "团播 · ${schedule.groupType.label}"
+                        schedule.isMultiLive -> "双人直播"
+                        else -> "单播"
+                    },
                 )
                 if (schedule.formatTag != null) {
                     DetailRow("形式", "${schedule.formatTag!!.emoji} ${schedule.formatTag!!.label}")
@@ -183,9 +190,9 @@ fun ScheduleDetailDialog(
                 Spacer(Modifier.height(20.dp))
 
                 // ===== 打开直播间按钮 =====
-                // 单人直播 → 该成员直播间；团播 → 首个已配置房间号的参与成员直播间，
+                // 单人直播 → 该成员直播间；团播/双人直播 → 首个已配置房间号的参与成员直播间，
                 // 也可点击上方参与成员头像直接跳转各自直播间。
-                val targetMember = if (schedule.isGroupLive) {
+                val targetMember = if (schedule.isMultiLive) {
                     participants.firstOrNull { it.roomId != null }
                 } else {
                     member
@@ -205,9 +212,9 @@ fun ScheduleDetailDialog(
                     Spacer(Modifier.width(8.dp))
                     Text(
                         text = when {
-                            (!schedule.isGroupLive && targetMember?.roomId != null) ->
-                                "打开 ${targetMember.name} 的直播间"
                             schedule.isGroupLive -> "打开团播直播间"
+                            schedule.isMultiLive -> "打开参与成员直播间"
+                            targetMember?.roomId != null -> "打开 ${targetMember.name} 的直播间"
                             else -> "打开直播间"
                         },
                         fontWeight = FontWeight.Bold,

@@ -17,7 +17,7 @@ import java.time.LocalTime
  * 契约要点：
  * - [version] 每次发布递增，客户端据此判断是否有更新
  * - [days] 按日分组的日程条目
- * - member 枚举：bella / jiaran / nailin / xinyi / sinuo / unknown
+ * - member 枚举：bella / jiaran / nailin / xinyi / sinuo / unknown；一期双人组合 bella_jiaran / bella_nailin / jiaran_nailin
  * - tag 枚举：live / show / special / rest（rest 行不入日程）
  * - [EventDto.recordingBvid]：直播结束后服务端录播管道回填的 B 站回放 BV 号（可选）
  * - [EventDto.groupType]：团播分组 none / asoul / xinyi_sinuo / zhijiang_variety（可选，缺省 none）
@@ -68,7 +68,10 @@ data class DayDto(
 data class EventDto(
     /** HH:mm。 */
     val time: String,
-    /** bella / jiaran / nailin / xinyi / sinuo / unknown。 */
+    /**
+     * bella / jiaran / nailin / xinyi / sinuo / unknown；
+     * 一期双人直播用组合键 bella_jiaran / bella_nailin / jiaran_nailin（字典序 `_` 连接）。
+     */
     val member: String,
     val title: String,
     val desc: String? = null,
@@ -118,23 +121,32 @@ private fun EventDto.toLiveSchedule(date: LocalDate): LiveSchedule? {
     // rest 行不入日程
     if (tag == "rest") return null
     val time = runCatching { LocalTime.parse(time) }.getOrNull() ?: return null
-    val memberId = MemberCatalog.memberIdFromServerKey(member)
+    val members = MemberCatalog.membersFromServerKey(member)
     val groupType = groupType?.lowercase()?.trim()?.let(GROUP_TYPE_KEYS::get) ?: GroupType.NONE
     val format = format?.lowercase()?.trim()?.let(FORMAT_KEYS::get) ?: StreamFormat.NORMAL
-    // 团播条目：副标题用分组标签；其余：成员名，unknown 回退标题/「未知成员」
+    // 团播条目：副标题用分组标签；一期双人：成员名用 " & " 连接；
+    // 其余：成员名，unknown 回退标题/「未知成员」
     val displayName = when {
         groupType != GroupType.NONE -> groupType.label
-        else -> memberId?.let { id -> MemberCatalog.ALL.firstOrNull { it.id == id }?.name }
-            ?: title.ifBlank { "未知成员" }
+        members.size > 1 -> members.joinToString(" & ") { it.name }
+        members.size == 1 -> members[0].name
+        else -> title.ifBlank { "未知成员" }
+    }
+    // 参与成员：团播=分组全员；一期双人=组合的两人；单播留空（由领域模型回退 memberId）
+    val resolvedParticipants = when {
+        groupType != GroupType.NONE -> MemberCatalog.participantsOf(groupType).map { it.id }
+        members.size > 1 -> members.map { it.id }
+        else -> emptyList()
     }
     return LiveSchedule(
         date = date,
         time = time,
         memberName = displayName,
-        memberId = if (groupType != GroupType.NONE) null else memberId,
+        memberId = if (groupType != GroupType.NONE || members.size > 1) null else members.firstOrNull()?.id,
         title = title,
         groupType = groupType,
         format = format,
+        participantIds = resolvedParticipants,
         source = ScheduleSource.API,
         recordingBvid = recordingBvid?.takeIf { it.isNotBlank() },
     )

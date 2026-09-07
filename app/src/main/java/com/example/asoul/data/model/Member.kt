@@ -166,4 +166,20 @@ object MemberCatalog {
     /** 将服务端 member key 映射为内置成员 id；`unknown`/未知值返回 null。 */
     fun memberIdFromServerKey(serverKey: String?): String? =
         SERVER_KEY_TO_ID[serverKey?.lowercase()?.trim()]
+
+    /**
+     * 将服务端 member key 映射为内置成员 id 列表。
+     *
+     * 支持一期双人组合键（如 `bella_nailin`，两 key 按字典序 `_` 连接）：
+     * 拆开后逐个映射；单播与组合返回数量为 1 / 2，未知返回空列表。
+     */
+    fun memberIdsFromServerKey(serverKey: String?): List<String> {
+        val key = serverKey?.lowercase()?.trim() ?: return emptyList()
+        val parts = if ('_' in key) key.split('_') else listOf(key)
+        return parts.mapNotNull { SERVER_KEY_TO_ID[it] }
+    }
+
+    /** 将服务端 member key 映射为内置成员对象列表（含一期双人组合）。 */
+    fun membersFromServerKey(serverKey: String?): List<Member> =
+        memberIdsFromServerKey(serverKey).mapNotNull { id -> ALL.firstOrNull { it.id == id } }
 }
