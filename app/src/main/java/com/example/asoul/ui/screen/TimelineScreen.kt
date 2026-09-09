@@ -64,7 +64,9 @@ import com.example.asoul.ui.components.MemberSelectorRow
 import com.example.asoul.ui.components.WeekNavigator
 import com.example.asoul.ui.dialog.ScheduleDetailDialog
 import kotlinx.coroutines.launch
+import java.time.Duration
 import java.time.LocalDate
+import java.time.LocalTime
 
 /**
  * 时间线首页（日历主界面）：
@@ -90,7 +92,7 @@ fun TimelineScreen(
     weekStart: LocalDate,
     schedules: List<LiveSchedule>,
     filter: ScheduleFilter,
-    /** P10：突击直播列表（含已结束，内部仅展示未结束条目）。 */
+    /** 突击直播列表（含已结束；未结束条目按日期并入日历对应日期段，不再顶部固定展示）。 */
     flashEvents: List<FlashLiveEvent> = emptyList(),
     /** 下拉刷新进行中（顶部展示刷新指示器）。 */
     isRefreshing: Boolean = false,
@@ -180,7 +182,7 @@ fun TimelineScreen(
 private const val SWIPE_TIP_PREFS = "swipe_tip"
 private const val KEY_SWIPE_TIP_SHOWN = "swipe_tip_shown"
 
-/** 单周内容：Header + 突击直播区块 + MemberSelectorRow + WeekNavigator + 按日 Section 列表。 */
+/** 单周内容：Header + MemberSelectorRow + WeekNavigator + 按日 Section 列表（突击直播并入对应日期）。 */
 @Composable
 private fun WeekContent(
     weekStart: LocalDate,
@@ -199,9 +201,29 @@ private fun WeekContent(
 ) {
     val days = Weeks.daysOfWeek(weekStart)
     val weekEnd = weekStart.plusDays(6)
-    // 按成员/团播过滤后再分组
-    val eventsByDay = remember(schedules, filter) {
-        schedules.filter { it.matches(filter) }.groupBy { it.date }
+    // 周程表条目与未结束的突击直播按日合并成时间线行（均按成员/团播过滤）：
+    // 突击直播不再固定在日历顶部单独展示，而是落在对应日期段、按开播时间混排。
+    val dayRows: Map<LocalDate, List<DayRow>> = remember(weekStart, schedules, filter, flashEvents) {
+        val weekDays = Weeks.daysOfWeek(weekStart)
+        val schedulesByDay = schedules
+            .filter { it.matches(filter) }
+            .groupBy { it.date }
+        val flashCandidates = flashEvents.filter { event ->
+            event.status != FlashStatus.ENDED &&
+                event.startTime.toLocalDate() in weekDays &&
+                event.matchesFlashFilter(filter)
+        }
+        weekDays.associateWith { date ->
+            val scheduleRows = schedulesByDay[date].orEmpty().map { DayRow.Schedule(it) }
+            // 与已有周程表条目同成员且时间差 ≤15 分钟的突击不重复展示（防日程内提前开播的兑底事件占两行）
+            val flashRows = flashCandidates
+                .filter { event ->
+                    event.startTime.toLocalDate() == date &&
+                        schedulesByDay[date].orEmpty().none { it.overlapsFlash(event) }
+                }
+                .map { DayRow.Flash(it) }
+            (scheduleRows + flashRows).sortedBy { it.time }
+        }
     }
     // 直播详情弹窗（点击卡片唤起）
     var detailSchedule by remember { mutableStateOf<LiveSchedule?>(null) }
@@ -287,31 +309,6 @@ private fun WeekContent(
             }
         }
 
-        // ===== P10 突击直播区块（仅存在未结束条目时展示，多条纵向排列） =====
-        val activeFlashEvents = remember(flashEvents) {
-            flashEvents.filter { it.status != FlashStatus.ENDED }
-        }
-        if (activeFlashEvents.isNotEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "\u26A1 突击直播",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-                activeFlashEvents.forEach { event ->
-                    FlashLiveCard(event = event)
-                }
-            }
-        }
-
         // ===== 成员头像选择行（原「成员」导航页整合至此） =====
         MemberSelectorRow(
             filter = filter,
@@ -346,7 +343,7 @@ private fun WeekContent(
                 item(key = index) {
                     DaySection(
                         date = date,
-                        events = eventsByDay[date].orEmpty(),
+                        rows = dayRows[date].orEmpty(),
                         accentColor = accent,
                         isSelected = date == selectedDate,
                         onAddToCalendar = onAddToCalendar,
@@ -371,11 +368,14 @@ private fun WeekContent(
 /**
  * 每日区块（UI 规格 3.3）：
  * 日期标题行（竖条 + "M.dd 星期X"）+ 事件卡片列表 / 空状态。
+ *
+ * [rows] 为周程表条目与未结束突击直播的混合行（已按时间排序）：
+ * 周程表条目用 [LiveEventCard]，突击直播用 [FlashLiveCard]（内嵌模式，显示 HH:mm + 状态）。
  */
 @Composable
 private fun DaySection(
     date: LocalDate,
-    events: List<LiveSchedule>,
+    rows: List<DayRow>,
     accentColor: Color,
     isSelected: Boolean,
     onAddToCalendar: (LiveSchedule) -> Unit,
@@ -407,7 +407,7 @@ private fun DaySection(
         }
         Spacer(Modifier.height(8.dp))
 
-        if (events.isEmpty()) {
+        if (rows.isEmpty()) {
             // 休息日空状态（规格 3.3）
             DayEmptyState(
                 emoji = "\uD83D\uDCA4",
@@ -416,15 +416,57 @@ private fun DaySection(
             )
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                events.forEach { event ->
-                    LiveEventCard(
-                        schedule = event,
-                        onAddToCalendar = { onAddToCalendar(event) },
-                        onDelete = { onDelete(event) },
-                        onCardClick = onCardClick,
-                    )
+                rows.forEach { row ->
+                    when (row) {
+                        is DayRow.Schedule -> LiveEventCard(
+                            schedule = row.schedule,
+                            onAddToCalendar = { onAddToCalendar(row.schedule) },
+                            onDelete = { onDelete(row.schedule) },
+                            onCardClick = onCardClick,
+                        )
+                        is DayRow.Flash -> FlashLiveCard(
+                            event = row.event,
+                            embeddedInCalendar = true,
+                        )
+                    }
                 }
             }
         }
+    }
+}
+
+/** 日历某日的一行：周程表条目或突击直播条目（按开播时间混排）。 */
+private sealed interface DayRow {
+    /** 行内排序用的开播时间。 */
+    val time: LocalTime
+
+    data class Schedule(val schedule: LiveSchedule) : DayRow {
+        override val time: LocalTime get() = schedule.time
+    }
+
+    data class Flash(val event: FlashLiveEvent) : DayRow {
+        override val time: LocalTime get() = event.startTime.toLocalTime()
+    }
+}
+
+/** 突击直播是否匹配当前成员/团播过滤（与周程表条目同规则：All 全显、按成员过滤）。 */
+private fun FlashLiveEvent.matchesFlashFilter(filter: ScheduleFilter): Boolean = when (filter) {
+    ScheduleFilter.All -> true
+    is ScheduleFilter.MemberFilter -> member?.id == filter.memberId
+    is ScheduleFilter.GroupFilter -> false
+}
+
+/**
+ * 周程表条目是否与突击直播重叠（同成员且开播时间差 ≤15 分钟视为同一场）。
+ * 未知成员（直播间兜底）事件与团播条目时段重叠时也视为重复，避免双行。
+ */
+private fun LiveSchedule.overlapsFlash(event: FlashLiveEvent): Boolean {
+    val diffMinutes = Duration.between(event.startTime.toLocalTime(), time).abs().toMinutes()
+    if (diffMinutes > 15) return false
+    val flashMemberId = event.member?.id
+    return if (flashMemberId != null) {
+        resolvedParticipantIds().contains(flashMemberId)
+    } else {
+        isMultiLive
     }
 }

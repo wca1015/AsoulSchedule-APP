@@ -52,14 +52,24 @@ private val STATUS_ENDED = Color(0xFF9CA3AF)
  * `auto_published == true` 时额外展示「⚠️待确认」徽标（设计文档明确要求）。
  *
  * 点击卡片 → 打开 source_url（B 站客户端 scheme 优先，网页兜底）。
+ *
+ * @param embeddedInCalendar 嵌入日历按日区块时置 true：开播时间文案只显示 HH:mm
+ *   （不再重复「M月d日」），避免与日期段标题重复。
  */
 @Composable
 fun FlashLiveCard(
     event: FlashLiveEvent,
     modifier: Modifier = Modifier,
+    embeddedInCalendar: Boolean = false,
 ) {
     val context = LocalContext.current
     val accent = event.member?.color ?: Color(0xFF8E7CC3)
+    // 嵌入日历日期段时只显示 HH:mm；独立展示时带「今晚/M月d日」文案
+    val startTimeText = if (embeddedInCalendar) {
+        event.startTime.format(TIME_FORMAT)
+    } else {
+        formatStartTime(event.startTime)
+    }
 
     Row(
         modifier = modifier
@@ -124,7 +134,7 @@ fun FlashLiveCard(
             Spacer(Modifier.height(2.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = formatStartTime(event.startTime),
+                    text = startTimeText,
                     fontSize = 12.sp,
                     color = Color.Gray,
                 )
