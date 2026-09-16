@@ -29,6 +29,15 @@ data class Member(
     @DrawableRes val avatarRes: Int? = null,
 )
 
+/**
+ * 组合快捷筛选预设（见 [MemberCatalog.COMBOS]）。
+ *
+ * @param id 预设唯一键（仅本地使用）
+ * @param label 展示名（如「枝江」「小心思」）
+ * @param memberIds 展开后的成员 id 列表（与 [MemberCatalog] 中的 id 对应）
+ */
+data class MemberCombo(val id: String, val label: String, val memberIds: List<String>)
+
 /** 内置成员库：Asoul 一期 + 二期 + 官方账号。 */
 object MemberCatalog {
 
@@ -132,6 +141,19 @@ object MemberCatalog {
 
     /** 可被排期的成员（成员选择器使用）。 */
     val SCHEDULABLE: List<Member> = FIRST_GEN + SECOND_GEN + GROUP
+
+    /**
+     * 组合快捷筛选预设（对齐 asoul.love 页面的「组合」维度）：
+     * 点一下 = 同时选中多名成员（OR 语义：任一参与即显示）。
+     */
+    val COMBOS: List<MemberCombo> = listOf(
+        MemberCombo("zhijiang", "枝江", listOf("bella", "diana", "eileen", "xinyi", "sinuo")),
+        MemberCombo("asoul", "A-SOUL", listOf("bella", "diana", "eileen")),
+        MemberCombo("xiaoxinsi", "小心思", listOf("xinyi", "sinuo")),
+        MemberCombo("jiabei", "嘉贝", listOf("diana", "bella")),
+        MemberCombo("naibei", "乃贝", listOf("bella", "eileen")),
+        MemberCombo("linjia", "琳嘉", listOf("diana", "eileen")),
+    )
 
     /**
      * 团播分组的参与成员：

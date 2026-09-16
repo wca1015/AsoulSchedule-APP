@@ -152,8 +152,10 @@ fun ScheduleDetailDialog(
 
                 // ===== 信息区 =====
                 DetailRow("时间", "${schedule.date.format(DETAIL_DATE_FORMAT)} ${Weeks.weekdayLabel(schedule.date)} ${schedule.time.format(DateTimeFormatter.ofPattern("HH:mm"))}")
+                // 分类：新类型体系（节目/日常/突击/2D，来自 ICS 数据源或旧字段回退）
+                DetailRow("分类", schedule.displayCategory.label)
                 DetailRow(
-                    "类型",
+                    "场次",
                     when {
                         schedule.isGroupLive -> "团播 · ${schedule.groupType.label}"
                         schedule.isMultiLive -> "双人直播"
@@ -164,6 +166,18 @@ fun ScheduleDetailDialog(
                     DetailRow("形式", "${schedule.formatTag!!.emoji} ${schedule.formatTag!!.label}")
                 }
                 DetailRow("来源", schedule.source.label)
+                // 来源动态（ICS 数据源提供）：点击唤起 B 站动态
+                if (!schedule.sourceUrl.isNullOrBlank()) {
+                    Text(
+                        text = "\uD83D\uDD17 查看来源动态",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .clickable { BilibiliLauncher.openDynamic(context, schedule.sourceUrl) }
+                            .padding(vertical = 6.dp),
+                    )
+                }
 
                 // ===== 团播参与成员 =====
                 if (participants.isNotEmpty()) {

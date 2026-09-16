@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.asoul.AsoulApplication
 import com.example.asoul.data.remote.dto.AppVersionDto
 import com.example.asoul.data.MockScheduleData
+import com.example.asoul.data.ScheduleMerger
 import com.example.asoul.data.model.FlashLiveEvent
 import com.example.asoul.data.model.LiveSchedule
 import com.example.asoul.data.model.Member
@@ -98,6 +99,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+        // 额外数据源：asoul.love ICS（突击预告 + 类型标签）——数据更新时重建当前周展示
+        viewModelScope.launch {
+            app.asoulLoveRepository.events.collect { refreshWeek() }
+        }
         // P6：启动引导（缓存优先 → 首拉 → 示例数据兜底，全程串行、无竞态）。
         // 旧实现中示例数据注入与网络拉取并发赛跑：两者谁先完成决定用户看到示例假数据还是空白，
         // 不同设备表现不一致。现收拢为单一引导协程，保证结果确定。
@@ -110,7 +115,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (update != null) {
                 _state.value = _state.value.copy(pendingUpdate = update)
             }
-        }    }
+        }
+    }
 
     /**
      * 启动引导：等缓存加载完成 → 首拉一次周程表 → 完全无数据时才注入示例数据。
@@ -129,6 +135,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         app.cacheBootstrap.await()
         // 拉取最新周程表；失败静默（断网/无网络由后续示例数据兜底）。
         runCatching { app.latestFetcher.fetchAndApply() }
+        // 额外数据源：asoul.love ICS（内部限流，距上次成功不足 1 小时则跳过）
+        runCatching { app.asoulLoveRepository.fetchIfDue() }
         if (repository.schedules.value.isEmpty()) {
             injectMockData(Weeks.startOfWeek(Weeks.today()))
         }
@@ -193,8 +201,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val realApplied = app.latestFetcher.lastAppliedWeekStart
         // 示例数据标记：注入后持续生效，直到服务端本周真实周程表被应用后自动失效。
         val mockActive = _state.value.isMockData && (realApplied == null || realApplied < thisWeek)
+        // 合并两份数据源：OSS 周程表为主（保留录播/日历绑定），asoul.love ICS 补漏
+        // （典型为纯文字预告的突击直播）并提供类型标签（节目/日常/突击/2D）
+        val ossSchedules = repository.schedulesForWeek(weekStart)
+        val asoulLoveSchedules = ScheduleMerger.withinWeek(app.asoulLoveRepository.events.value, weekStart)
         _state.value = _state.value.copy(
-            weekSchedules = repository.schedulesForWeek(weekStart),
+            weekSchedules = ScheduleMerger.merge(ossSchedules, asoulLoveSchedules),
             weekStatus = repository.statusForWeek(weekStart),
             // 真实数据所属周优先；仅示例数据兜底（无任何真实数据）时以本周占位，
             // 避免误展示「本周周程表尚未发布」提示。
@@ -285,7 +297,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * - 本周：拉取 `/latest.json`（周程表，强制应用）
      * - 往日周：按需拉取 `week/{week_start}.json` 归档（含服务端录播回填；
      *   服务端未发布该周文件时 404 静默，保持现状）
-     * 同时拉取突击直播 `/flash.json`。拉取完成（无论成功或失败）后关闭刷新指示器；
+     * 同时拉取突击直播 `/flash.json` 与 asoul.love ICS（后者限流：两次尝试至少间隔 10 分钟）。
+     * 拉取完成（无论成功或失败）后关闭刷新指示器；
      * 数据若有更新，会经由仓库 Flow（schedules / flashEvents）自动回流到 UI。
      */
     fun refreshData() {
@@ -300,8 +313,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 async { runCatching { app.latestFetcher.fetchWeekAndApply(weekStart) } }
             }
             val flashJob = async { runCatching { app.flashRepository.fetchLatestFlash() } }
+            // asoul.love：用户主动刷新允许提前拉取（仓库内部保留 10 分钟防抖间隔）
+            val asoulLoveJob = async { runCatching { app.asoulLoveRepository.fetchIfDue(force = true) } }
             scheduleJob.await()
             flashJob.await()
+            asoulLoveJob.await()
             _state.value = _state.value.copy(isRefreshing = false)
             refreshWeek()
         }

@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.asoul.data.model.GroupType
+import com.example.asoul.data.model.LiveCategory
 import com.example.asoul.data.model.LiveSchedule
 import com.example.asoul.data.model.MemberCatalog
 import com.example.asoul.data.model.StreamFormat
@@ -61,16 +62,30 @@ private data class Badge(
     val onClick: (() -> Unit)? = null,
 )
 
-/** 从日程推导 Badge 列表（录像 / 团播分组 / 直播形式 / 特别企划）。 */
+/**
+ * 从日程推导 Badge 列表。
+ *
+ * 类型标签采用新体系（对齐 asoul.love 的四类划分）：**日常 / 节目 / 突击 / 2D**——
+ * 由 ICS 数据源标注，OSS 数据按旧字段回退推导（见 [LiveSchedule.displayCategory]）。
+ * 旧形式标签（小剧场/夜谈/游戏室）已并入「节目」类型，不再单独展示；
+ * 保留 录像 / 团播分组 / 联动 / 工商 / 特别 等补充标签。
+ */
 private fun LiveSchedule.badges(onOpenRecording: () -> Unit): List<Badge> = buildList {
+    // 类型标签（新体系）
+    when (displayCategory) {
+        LiveCategory.DAILY -> add(Badge("日常", AsoulColors.BadgeDaily))
+        LiveCategory.SHOW -> add(Badge("节目", AsoulColors.BadgeShow))
+        LiveCategory.FLASH -> add(Badge("突击", AsoulColors.BadgeFlash))
+        LiveCategory.TWO_D -> add(Badge("2D", AsoulColors.Badge2D))
+        LiveCategory.UNKNOWN -> {}
+    }
     // 「录像」：往日已结束的直播附带录像链接（点击跳转 B 站回放）
     if (!recordingBvid.isNullOrBlank() && isEnded()) {
         add(Badge("录像", AsoulColors.BadgeRecording, onClick = onOpenRecording))
     }
     if (groupType != GroupType.NONE) add(Badge(groupType.label, AsoulColors.BadgeGroup))
+    // 补充标签（保留）：联动 / 工商（小剧场/夜谈/游戏室已并入「节目」类型）
     when (format) {
-        StreamFormat.THEATER, StreamFormat.NIGHT_TALK, StreamFormat.GAME_ROOM ->
-            add(Badge("节目", AsoulColors.BadgeShow))
         StreamFormat.COLLAB -> add(Badge("联动", AsoulColors.BadgeCollab))
         StreamFormat.COMMERCIAL -> add(Badge("工商", AsoulColors.BadgeCommercial))
         else -> {}

@@ -39,32 +39,50 @@ class ScheduleApiClient {
     /** 拉取 App 版本清单 JSON 原文；失败返回 null。 */
     suspend fun fetchAppVersion(): String? = get(ApiEndpoints.APP_VERSION_JSON)
 
-    /** GET 请求，挂起等待响应；非 2xx / IO 异常均返回 null。 */
-    private suspend fun get(url: String): String? = suspendCancellableCoroutine { cont ->
-        val call = client.newCall(Request.Builder().url(url).build())
-        cont.invokeOnCancellation { call.cancel() }
-        call.enqueue(
-            object : Callback {
-                override fun onResponse(call: Call, response: Response) {
-                    val body = response.use { resp ->
-                        if (resp.isSuccessful) resp.body.string() else null
-                    }
-                    if (body == null) {
-                        Log.w(TAG, "GET $url 失败: HTTP ${response.code}")
-                    }
-                    cont.resume(body)
-                }
+    /**
+     * 拉取 asoul.love 日历订阅（ICS 文本）；失败返回 null。
+     *
+     * 必须携带浏览器 UA：该站点由 Cloudflare 防护，非浏览器 UA 会被 403 挑战拦截。
+     * 调用方（[com.example.asoul.data.AsoulLoveRepository]）负责 1 小时拉取间隔。
+     */
+    suspend fun fetchAsoulLoveIcs(): String? =
+        get(ApiEndpoints.ASOUL_LOVE_ICS, userAgent = BROWSER_UA)
 
-                override fun onFailure(call: Call, e: IOException) {
-                    if (cont.isCancelled) return
-                    Log.w(TAG, "GET $url 异常: ${e.message}")
-                    cont.resume(null)
-                }
-            },
-        )
-    }
+    /** GET 请求，挂起等待响应；非 2xx / IO 异常均返回 null。 */
+    private suspend fun get(url: String, userAgent: String? = null): String? =
+        suspendCancellableCoroutine { cont ->
+            val request = Request.Builder().url(url).apply {
+                if (userAgent != null) header("User-Agent", userAgent)
+            }.build()
+            val call = client.newCall(request)
+            cont.invokeOnCancellation { call.cancel() }
+            call.enqueue(
+                object : Callback {
+                    override fun onResponse(call: Call, response: Response) {
+                        val body = response.use { resp ->
+                            if (resp.isSuccessful) resp.body.string() else null
+                        }
+                        if (body == null) {
+                            Log.w(TAG, "GET $url 失败: HTTP ${response.code}")
+                        }
+                        cont.resume(body)
+                    }
+
+                    override fun onFailure(call: Call, e: IOException) {
+                        if (cont.isCancelled) return
+                        Log.w(TAG, "GET $url 异常: ${e.message}")
+                        cont.resume(null)
+                    }
+                },
+            )
+        }
 
     private companion object {
         const val TAG = "ScheduleApiClient"
+
+        /** 浏览器 UA（访问 asoul.love 必需，否则被 Cloudflare 403）。 */
+        const val BROWSER_UA =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+                "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
     }
 }

@@ -8,6 +8,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,6 +47,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.asoul.data.model.FlashLiveEvent
@@ -62,7 +64,9 @@ import com.example.asoul.ui.components.SwipeTipOverlay
 import com.example.asoul.ui.components.LiveEventCard
 import com.example.asoul.ui.components.MemberSelectorRow
 import com.example.asoul.ui.components.WeekNavigator
+import com.example.asoul.ui.dialog.AboutDialog
 import com.example.asoul.ui.dialog.ScheduleDetailDialog
+import com.example.asoul.util.BilibiliLauncher
 import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.LocalDate
@@ -201,6 +205,9 @@ private fun WeekContent(
 ) {
     val days = Weeks.daysOfWeek(weekStart)
     val weekEnd = weekStart.plusDays(6)
+    val context = LocalContext.current
+    // 「关于」弹窗（Header 右上角「i」入口）
+    var showAbout by remember { mutableStateOf(false) }
     // 周程表条目与未结束的突击直播按日合并成时间线行（均按成员/团播过滤）：
     // 突击直播不再固定在日历顶部单独展示，而是落在对应日期段、按开播时间混排。
     val dayRows: Map<LocalDate, List<DayRow>> = remember(weekStart, schedules, filter, flashEvents) {
@@ -272,6 +279,7 @@ private fun WeekContent(
             weekStart = weekStart,
             weekEnd = weekEnd,
             showMockBadge = isMockData && weekStart == Weeks.startOfWeek(Weeks.today()),
+            onAboutClick = { showAbout = true },
         )
 
         // ===== 本周无数据提示：服务端周程表属于往日周（本周周程表尚未发布）=====
@@ -352,7 +360,20 @@ private fun WeekContent(
                     )
                 }
             }
-            item { Spacer(Modifier.height(96.dp)) }
+            // 数据来源鸣谢（额外数据源：枝江站 asoul.love 日历订阅；点击可打开站点）
+            item(key = "attribution") {
+                Text(
+                    text = "特别鸣谢枝江站 https://asoul.love 提供的额外数据支持",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { BilibiliLauncher.openUrl(context, "https://asoul.love") }
+                        .padding(top = 12.dp, bottom = 4.dp),
+                )
+                Spacer(Modifier.height(96.dp))
+            }
         }
     }
 
@@ -362,6 +383,11 @@ private fun WeekContent(
             schedule = schedule,
             onDismiss = { detailSchedule = null },
         )
+    }
+
+    // ===== 关于弹窗（版本 / 数据来源 / 鸣谢） =====
+    if (showAbout) {
+        AboutDialog(onDismiss = { showAbout = false })
     }
 }
 
@@ -449,10 +475,10 @@ private sealed interface DayRow {
     }
 }
 
-/** 突击直播是否匹配当前成员/团播过滤（与周程表条目同规则：All 全显、按成员过滤）。 */
+/** 突击直播是否匹配当前成员/团播过滤（与周程表条目同规则：All 全显、按成员过滤、多选任一命中）。 */
 private fun FlashLiveEvent.matchesFlashFilter(filter: ScheduleFilter): Boolean = when (filter) {
     ScheduleFilter.All -> true
-    is ScheduleFilter.MemberFilter -> member?.id == filter.memberId
+    is ScheduleFilter.MemberFilter -> member?.id?.let { it in filter.memberIds } == true
     is ScheduleFilter.GroupFilter -> false
 }
 

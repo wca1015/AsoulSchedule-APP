@@ -2,6 +2,7 @@ package com.example.asoul.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,7 +18,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -36,18 +39,16 @@ import com.example.asoul.data.model.Cohort
 import com.example.asoul.data.model.GroupType
 import com.example.asoul.data.model.Member
 import com.example.asoul.data.model.MemberCatalog
+import com.example.asoul.data.model.MemberCombo
 import com.example.asoul.data.model.ScheduleFilter
 
 /**
  * 日历主界面成员选择行（原「成员」底部导航页整合至此）。
  *
- * 横向可滚动的头像列表：
- * - 「全部」入口
- * - 5 位成员头像（一期 + 二期）
- * - 团播分组头像（Asoul团播 / 心宜思诺团播 / 枝江综艺）
- *
- * 点击成员头像 → 日历仅显示该成员的单播及其参与的团播；
- * 点击团播头像 → 仅显示对应团播日程；再次点击取消过滤。
+ * 两行筛选（对齐 asoul.love 日历页的筛选维度）：
+ * 1. 头像行：「全部」+ 5 位成员头像 + 团播分组头像——成员支持**多选**（点一下加入 / 再点取消），
+ *    选中多人时显示「任一成员参与」的单播与团播（与对方页面的 include 语义一致）
+ * 2. 组合行：枝江 / A-SOUL / 小心思 / 嘉贝 / 乃贝 / 琳嘉——点一下 = 同时选中多名成员
  */
 @Composable
 fun MemberSelectorRow(
@@ -55,52 +56,108 @@ fun MemberSelectorRow(
     onFilterChange: (ScheduleFilter) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LazyRow(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 10.dp),
-        contentPadding = PaddingValues(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        // 「全部」入口
-        item(key = "all") {
-            AllChip(isSelected = filter == ScheduleFilter.All) {
-                onFilterChange(ScheduleFilter.All)
+    val selectedMemberIds = (filter as? ScheduleFilter.MemberFilter)?.memberIds.orEmpty()
+    Column(modifier = modifier.fillMaxWidth()) {
+        LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 10.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            // 「全部」入口
+            item(key = "all") {
+                AllChip(isSelected = filter == ScheduleFilter.All) {
+                    onFilterChange(ScheduleFilter.All)
+                }
             }
-        }
-        // 成员头像
-        MemberCatalog.SCHEDULABLE.filter { it.cohort != Cohort.OFFICIAL }
-            .forEach { member ->
-                item(key = member.id) {
-                    MemberChip(
-                        member = member,
-                        isSelected = (filter is ScheduleFilter.MemberFilter && filter.memberId == member.id),
+            // 成员头像（多选开关）
+            MemberCatalog.SCHEDULABLE.filter { it.cohort != Cohort.OFFICIAL }
+                .forEach { member ->
+                    item(key = member.id) {
+                        MemberChip(
+                            member = member,
+                            isSelected = member.id in selectedMemberIds,
+                        ) {
+                            val next = if (member.id in selectedMemberIds) {
+                                selectedMemberIds - member.id
+                            } else {
+                                selectedMemberIds + member.id
+                            }
+                            onFilterChange(
+                                if (next.isEmpty()) ScheduleFilter.All
+                                else ScheduleFilter.MemberFilter(next),
+                            )
+                        }
+                    }
+                }
+            // 团播分组头像
+            listOf(GroupType.ASOUL, GroupType.XINYI_SINUO, GroupType.ZHIJIANG_VARIETY).forEach { group ->
+                item(key = "group_${group.name}") {
+                    GroupChip(
+                        groupType = group,
+                        isSelected = (filter is ScheduleFilter.GroupFilter && filter.groupType == group),
                     ) {
-                        val next = if (filter is ScheduleFilter.MemberFilter && filter.memberId == member.id) {
+                        val next = if (filter is ScheduleFilter.GroupFilter && filter.groupType == group) {
                             ScheduleFilter.All
                         } else {
-                            ScheduleFilter.MemberFilter(member.id)
+                            ScheduleFilter.GroupFilter(group)
                         }
                         onFilterChange(next)
                     }
                 }
             }
-        // 团播分组头像
-        listOf(GroupType.ASOUL, GroupType.XINYI_SINUO, GroupType.ZHIJIANG_VARIETY).forEach { group ->
-            item(key = "group_${group.name}") {
-                GroupChip(
-                    groupType = group,
-                    isSelected = (filter is ScheduleFilter.GroupFilter && filter.groupType == group),
-                ) {
-                    val next = if (filter is ScheduleFilter.GroupFilter && filter.groupType == group) {
-                        ScheduleFilter.All
-                    } else {
-                        ScheduleFilter.GroupFilter(group)
+        }
+        // 组合快捷筛选（点一下 = 同时选中多名成员）
+        LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp, bottom = 10.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            MemberCatalog.COMBOS.forEach { combo ->
+                item(key = "combo_${combo.id}") {
+                    val isSelected = selectedMemberIds == combo.memberIds.toSet()
+                    ComboChip(
+                        combo = combo,
+                        isSelected = isSelected,
+                    ) {
+                        onFilterChange(
+                            if (isSelected) ScheduleFilter.All
+                            else ScheduleFilter.MemberFilter(combo.memberIds.toSet()),
+                        )
                     }
-                    onFilterChange(next)
                 }
             }
         }
+    }
+}
+
+/** 组合快捷项胶囊（枝江 / A-SOUL / 小心思 / 嘉贝 / 乃贝 / 琳嘉）。 */
+@Composable
+private fun ComboChip(combo: MemberCombo, isSelected: Boolean, onClick: () -> Unit) {
+    val accent = Color(0xFF8E7CC3)
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = if (isSelected) {
+            accent.copy(alpha = 0.16f)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        },
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (isSelected) accent else MaterialTheme.colorScheme.outlineVariant,
+        ),
+        modifier = Modifier.clickable(onClick = onClick),
+    ) {
+        Text(
+            text = combo.label,
+            fontSize = 12.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            color = if (isSelected) accent else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+        )
     }
 }
 

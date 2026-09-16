@@ -9,11 +9,13 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
 
-/** 日程来源，对应方案中「来源标签」：周程表识别 / API 抓取 / 手动添加。 */
+/** 日程来源，对应方案中「来源标签」：周程表识别 / API 抓取 / 枝江站（asoul.love）/ 手动添加。 */
 enum class ScheduleSource(val label: String) {
     MANUAL("手动添加"),
     OCR("周程表识别"),
     API("API抓取"),
+    /** 额外数据源：asoul.love 日历订阅（ICS），补充突击预告与类型标签。 */
+    ASOUL_LOVE("枝江站"),
 }
 
 /**
@@ -56,6 +58,36 @@ enum class StreamFormat(val label: String, val emoji: String) {
 }
 
 /**
+ * 直播类型标签（新体系，对齐 asoul.love 的四类划分：节目 / 日常 / 突击 / 2D）。
+ *
+ * 由 ICS 数据源（`calendar.ics` 的 `【类别】` 前缀）标注；
+ * OSS 数据未标注时为 [UNKNOWN]，展示时由 [LiveSchedule.displayCategory] 回退推导。
+ */
+enum class LiveCategory(val label: String) {
+    /** 未标注（仅用于回退推导）。 */
+    UNKNOWN(""),
+    /** 日常：成员常规直播。 */
+    DAILY("日常"),
+    /** 节目：团播 / 综艺 / 特别企划等节目化场次。 */
+    SHOW("节目"),
+    /** 突击：临时加场直播。 */
+    FLASH("突击"),
+    /** 2D：2D 形象直播。 */
+    TWO_D("2D");
+
+    companion object {
+        /** ICS 摘要前缀（【日常】/【节目】/【突击】/【2D】）→ 枚举；未知返回 [UNKNOWN]。 */
+        fun fromIcsLabel(raw: String?): LiveCategory = when (raw?.trim()) {
+            "日常" -> DAILY
+            "节目" -> SHOW
+            "突击" -> FLASH
+            "2D" -> TWO_D
+            else -> UNKNOWN
+        }
+    }
+}
+
+/**
  * 一条直播日程。
  *
  * 与产品方案中的 [LiveSchedule] 结构一致，额外携带来源与置信度，
@@ -86,6 +118,13 @@ data class LiveSchedule(
      * - 其余场景留空，由 [resolvedParticipantIds] 按团播分组 / 单播成员推导
      */
     val participantIds: List<String> = emptyList(),
+    /**
+     * 类型标签（新体系）：由 asoul.love ICS 数据源标注；
+     * OSS 数据缺省 [LiveCategory.UNKNOWN]，展示时由 [displayCategory] 回退推导。
+     */
+    val category: LiveCategory = LiveCategory.UNKNOWN,
+    /** 来源链接（ICS 提供的 B 站动态链接），详情弹窗「查看来源动态」用。 */
+    val sourceUrl: String? = null,
 ) {
     /** 兼容旧逻辑：是否为团播。 */
     val isGroupLive: Boolean get() = groupType != GroupType.NONE
@@ -95,6 +134,20 @@ data class LiveSchedule(
 
     /** 需要以标签呈现的「形式/性质」标签；普通直播返回 null。 */
     val formatTag: StreamFormat? get() = format.takeIf { it != StreamFormat.NORMAL }
+
+    /**
+     * 展示用类型标签（新体系）：优先 ICS 标注，否则按旧字段回退推导——
+     * - 标题含「突击」（如服务端并入的突击条目）→ 突击
+     * - 团播 / 节目形式（小剧场/夜谈/游戏室/联动/工商）→ 节目
+     * - 其余单播 → 日常
+     */
+    val displayCategory: LiveCategory
+        get() = when {
+            category != LiveCategory.UNKNOWN -> category
+            title.contains("突击") -> LiveCategory.FLASH
+            groupType != GroupType.NONE || format != StreamFormat.NORMAL -> LiveCategory.SHOW
+            else -> LiveCategory.DAILY
+        }
 
     /** 在指定成员库中解析出成员对象；未匹配到则返回 null。 */
     fun member(catalog: List<Member> = MemberCatalog.ALL): Member? =

@@ -2,6 +2,7 @@ package com.example.asoul.ui.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +40,7 @@ private val RANGE_FORMAT = DateTimeFormatter.ofPattern("MM.dd")
  * - "CALENDAR" 48sp w900 白色大标题 + 阴影
  * - 副标题「枝江娱乐直播日历」+ 日期范围（枝江强调黄）
  * - 左上角斜条带装饰 "Z.J. ENTERTAINMENT"
+ * - 右上角 Logo + 「关于」入口（点击弹出版本 / 数据来源 / 鸣谢）
  */
 @Composable
 fun HeaderBanner(
@@ -47,6 +49,8 @@ fun HeaderBanner(
     modifier: Modifier = Modifier,
     /** 当前展示的是开发示例数据时为 true，头部展示「示例数据」徽标提醒用户。 */
     showMockBadge: Boolean = false,
+    /** 点击右上角「关于」入口；为 null 时不展示入口。 */
+    onAboutClick: (() -> Unit)? = null,
 ) {
     val gradient = Brush.linearGradient(
         colors = listOf(
@@ -142,5 +146,25 @@ fun HeaderBanner(
                 .clip(CircleShape)
                 .background(Color.White.copy(alpha = 0.15f)),
         )
+        // 「关于」入口（版本 / 数据来源 / 鸣谢），位于 Logo 下方
+        if (onAboutClick != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(end = 18.dp, top = 58.dp)
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.22f))
+                    .clickable(onClick = onAboutClick),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "i",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                )
+            }
+        }
     }
 }

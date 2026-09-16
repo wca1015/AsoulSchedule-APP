@@ -34,4 +34,15 @@ object AsoulColors {
 
     /** 「录像」：往日已结束直播的 B 站回放入口。 */
     val BadgeRecording = Color(0xFFFB7299)
+
+    // ===== 类型标签（新体系：节目 / 日常 / 突击 / 2D） =====
+
+    /** 「日常」：成员常规直播（值日直播）。 */
+    val BadgeDaily = Color(0xFF9CA3AF)
+
+    /** 「突击」：临时加场突击直播。 */
+    val BadgeFlash = Color(0xFFEF4444)
+
+    /** 「2D」：2D 形象直播。 */
+    val Badge2D = Color(0xFF06B6D4)
 }

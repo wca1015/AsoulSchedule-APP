@@ -2,6 +2,7 @@ package com.example.asoul
 
 import android.app.Application
 import com.example.asoul.calendar.CalendarWriter
+import com.example.asoul.data.AsoulLoveRepository
 import com.example.asoul.data.FlashScheduleRepository
 import com.example.asoul.data.ScheduleCacheStore
 import com.example.asoul.data.ScheduleRepository
@@ -51,6 +52,11 @@ class AsoulApplication : Application() {
         LatestScheduleFetcher(apiClient, cacheStore, repository)
     }
 
+    /** 额外数据源：asoul.love 日历订阅（ICS）——补充突击预告与类型标签，1 小时拉取间隔。 */
+    val asoulLoveRepository: AsoulLoveRepository by lazy {
+        AsoulLoveRepository(apiClient, cacheStore)
+    }
+
     // ===== App 更新检查 / 安装 =====
 
     /** 更新提示记忆（跳过版本 / 当日已提示）。 */
@@ -64,9 +70,9 @@ class AsoulApplication : Application() {
     /** APK 下载与安装执行器。 */
     val appUpdater: AppUpdater by lazy { AppUpdater(this) }
 
-    /** 前台轮询调度（周程表 1h / 突击直播 5min，回前台即时拉取）。 */
+    /** 前台轮询调度（周程表 1h / 突击直播 5min / asoul.love 1h，回前台即时拉取）。 */
     private val syncManager: ScheduleSyncManager by lazy {
-        ScheduleSyncManager(flashRepository, latestFetcher)
+        ScheduleSyncManager(flashRepository, latestFetcher, asoulLoveRepository)
     }
 
     /** 进程级作用域：启动时加载缓存等一次性任务。 */
@@ -86,6 +92,7 @@ class AsoulApplication : Application() {
             runCatching {
                 latestFetcher.loadFromCache()
                 flashRepository.loadFromCache()
+                asoulLoveRepository.loadFromCache()
             }
             cacheBootstrap.complete(Unit)
         }

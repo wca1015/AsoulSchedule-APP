@@ -5,6 +5,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.example.asoul.AsoulApplication
+import com.example.asoul.data.AsoulLoveRepository
 import com.example.asoul.data.FlashScheduleRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,12 +32,14 @@ import kotlin.time.Duration.Companion.minutes
 class ScheduleSyncManager(
     private val flashRepository: FlashScheduleRepository,
     private val latestFetcher: LatestScheduleFetcher,
+    private val asoulLoveRepository: AsoulLoveRepository,
 ) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private var latestPollingJob: Job? = null
     private var flashPollingJob: Job? = null
+    private var asoulLovePollingJob: Job? = null
 
     private val lifecycleObserver = LifecycleEventObserver { _, event ->
         when (event) {
@@ -53,9 +56,11 @@ class ScheduleSyncManager(
 
     /** App 回前台：立即拉取 flash + 顺带拉取一次 latest，并启动周期轮询。 */
     private fun onForeground() {
-        Log.d(TAG, "回前台：立即拉取 flash + latest")
+        Log.d(TAG, "回前台：立即拉取 flash + latest + asoul.love")
         scope.launch { runSafely("flash 即时拉取") { flashRepository.fetchLatestFlash() } }
         scope.launch { runSafely("latest 即时拉取") { latestFetcher.fetchAndApply() } }
+        // asoul.love：仓库内部限流（距上次成功 ≥ 1 小时才发请求）
+        scope.launch { runSafely("asoul.love 即时拉取") { asoulLoveRepository.fetchIfDue() } }
         startPolling()
     }
 
@@ -63,11 +68,13 @@ class ScheduleSyncManager(
     private fun onBackground() {
         latestPollingJob?.cancel()
         flashPollingJob?.cancel()
+        asoulLovePollingJob?.cancel()
         latestPollingJob = null
         flashPollingJob = null
+        asoulLovePollingJob = null
     }
 
-    /** 启动两条轮询协程（幂等：已在运行时不重复启动）。 */
+    /** 启动三条轮询协程（幂等：已在运行时不重复启动）。 */
     private fun startPolling() {
         if (latestPollingJob?.isActive != true) {
             latestPollingJob = scope.launch {
@@ -77,6 +84,11 @@ class ScheduleSyncManager(
         if (flashPollingJob?.isActive != true) {
             flashPollingJob = scope.launch {
                 pollLoop(POLL_FLASH_INTERVAL) { flashRepository.fetchLatestFlash() }
+            }
+        }
+        if (asoulLovePollingJob?.isActive != true) {
+            asoulLovePollingJob = scope.launch {
+                pollLoop(POLL_ASOUL_LOVE_INTERVAL) { asoulLoveRepository.fetchIfDue() }
             }
         }
     }
@@ -106,3 +118,5 @@ class ScheduleSyncManager(
 /** 轮询间隔常量（设计文档：周程表每小时、突击直播每 5 分钟）。 */
 internal val POLL_LATEST_INTERVAL: Duration = 1.hours
 internal val POLL_FLASH_INTERVAL: Duration = 5.minutes
+/** asoul.love ICS：对方要求低频访问，固定 1 小时（与其 REFRESH-INTERVAL 一致）。 */
+internal val POLL_ASOUL_LOVE_INTERVAL: Duration = 1.hours

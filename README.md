@@ -11,7 +11,8 @@
 - **周程表时间线**：以「周」为单位展示直播日程，按日分块；**右划**回看往日周历、**左划**往回切周（本周不可左划，左划一次回退一周，无法超过当前周，带滑动+淡入淡出动画），往日周右下角「回到本周」按钮一键直达当前周。
 - **切周手势引导**：内容区上方常驻手势提示条，文案随所处周自适应——本周仅提示右划、上周提示「左划回本周」、更早的往日周提示「左划回上一周」（展示 6 秒后自动淡出）；首次安装弹出一次全屏手势引导浮层（`SharedPreferences` 持久化，全生命周期只弹一次）。
 - **直播录像回看**：往日已结束的直播以粉色「录像」标签展示（与团播/节目等标签同款样式），点击标签通过 `bilibili://video/{BV号}` 唤起 B 站客户端播放回放，未安装时自动回退浏览器；无录播上传的日程不显示标签。录像 BV 号优先来自服务端 `latest.json` / `week/{周起始日}.json` 的 `recording_bvid` 字段（服务端录播管道回填；往日周归档在右划进入该周或下拉刷新时按需拉取），周程表整周刷新时会保留已有录像绑定不被冲掉；服务端字段缺失时回退本地 Mock 数据。
-- **成员过滤器**：顶部成员头像选择行（原「成员」页整合而来），点击头像即可过滤显示该成员的单播 + 其参与的团播 + 该成员的突击直播（未识别出成员的兜底事件仅在「全部」视图可见）。支持服务端下发的一期双人组合键（`bella_jiaran` / `bella_nailin` / `jiaran_nailin`），双人卡片同时命中两名参与成员。
+- **成员过滤器**：顶部成员头像选择行（原「成员」页整合而来），成员**支持多选**（点一下加入 / 再点取消），显示选中成员的单播 + 其参与的团播 + 相关突击直播（未识别出成员的兜底事件仅在「全部」视图可见）。
+- **组合快捷筛选**：成员行下方提供组合胶囊——枝江 / A-SOUL / 小心思 / 嘉贝 / 乃贝 / 琳嘉，点一下 = 同时选中多名成员（对齐 asoul.love 日历页的筛选维度）；服务端下发的一期双人组合键（`bella_jiaran` / `bella_nailin` / `jiaran_nailin`）同样会命中两名参与成员。
 - **内置成员库**（离线硬编码，无需网络）：
   - 一期：贝拉 Bella、嘉然 Diana、乃琳 Eileen
   - 二期：思诺、心宜
@@ -21,7 +22,8 @@
 - **一键进入直播间**：日程详情弹窗中通过 `bilibili://live/{roomId}` 唤起 B 站客户端，未安装时自动回退浏览器网页版。
 - **突击直播并入日历（v1.5）**：未结束的突击直播不再固定顶部区块，而是按开播时间与周程表条目混排进对应日期段——成员应援色卡片 + 「突击」徽标，展示头像/名字、标题、`HH:mm` 与状态标签（待开播黄 / 直播中红带呼吸动效），`auto_published` 条目额外打「⚠️待确认」徽标；与同成员周程表条目时间差 ≤15 分钟时自动去重，避免同一场直播占两行；点击卡片通过 `bilibili://feed/{动态id}`（直播间兜底事件回退 `bilibili://live/{roomId}`）唤起 B 站客户端，未安装时回退浏览器。后台轮询到新突击直播时 Snackbar 提醒。已结束的突击由服务端并入周程表，以常驻条目回看并可获「录像」标签。
 - **App 内更新（v1.4）**：启动后静默拉取 OSS `app_version.json`；当远端 `version_code` 高于本地、用户未「跳过此版本」且当日未提示过时弹更新弹窗——「立即更新」下载 APK（托管于 GitHub Releases）并经 FileProvider 调起系统安装（首次引导授予「安装未知应用」权限）/「跳过此版本」之后不再提示 /「稍后」当日不再打扰。
-- **日程标签体系**：来源标签（周程表识别 / API 抓取）+ 形式标签（小剧场 🎭 / 夜谈 🌙 / 游戏室 🎮 / 联动 🤝 / 工商直播 💼）+ 录像标签 + 识别置信度。
+- **直播类型标签（新体系）**：按 asoul.love 的四类划分展示——**日常 / 节目 / 突击 / 2D**（由 ICS 数据源标注，旧数据按团播分组与形式回退推导）；同时保留 录像 / 团播分组 / 联动 / 工商 / 特别 等补充标签。旧形式标签（小剧场/夜谈/游戏室）已并入「节目」类型，不再单独展示。
+- **日程标签体系**：来源标签（周程表识别 / API 抓取 / 枝江站）+ 类型标签（日常 / 节目 / 突击 / 2D）+ 录像标签 + 识别置信度。
 
 ## 🌐 数据来源
 
@@ -33,8 +35,13 @@
 | `flash.json` | 突击直播（服务端 48 小时自动清理） | 启动 / 回前台立即拉取 + 每 5 分钟轮询 |
 | `week/{周起始日}.json` | 往日周归档（含录播回填） | 右划回看该周 / 下拉刷新时按需拉取 |
 | `app_version.json` | App 版本清单（更新检查） | 启动后静默检查一次 |
+| `asoul.love/calendar.ics` | **额外数据源**（枝江站）：补充突击预告与类型标签 | 启动 / 回前台 + 每小时拉取（严格 ≥1 小时，遵循对方站点要求） |
 
 断网时展示上次缓存；本周无数据时提示「周程表尚未发布」并引导右划回看往期；完全无真实数据（断网且无缓存）时才注入开发示例数据兜底，并展示「示例数据」徽标。
+
+> 额外数据源（asoul.love）与 OSS 数据的合并策略：**同场次以 OSS 为准**（保留录播 BV、日历绑定与团播分组），
+> ICS 只补两类信息——我们抓不到的事件（典型为「纯文字预告」的突击直播）整体追加，
+> 匹配到的同场次则用 ICS 的类型标签与来源动态链接补全（匹配规则：同日期 + 时间差 ≤15 分钟 + 参与成员有交集）。
 
 ## 🧠 OCR 周程表识别管线（架构已就位）
 
@@ -86,13 +93,16 @@ app/src/main/
 │   │   │   ├── LiveSchedule.kt     # 日程模型 / 来源 / 团播分组 / 形式标签 / 录像BV号 / 参与成员 / 周工具
 │   │   │   ├── Member.kt           # 成员模型 + MemberCatalog（服务端 member key → 内置 id、 双人组合键解析）
 │   │   │   ├── FlashLiveEvent.kt   # P10：突击直播领域模型 + 状态枚举（upcoming/live/ended）
-│   │   │   └── ScheduleFilter.kt   # 主界面过滤器（全部 / 成员 / 团播）
+│   │   │   └── ScheduleFilter.kt   # 主界面过滤器（全部 / 成员多选 / 团播；组合快捷项见 MemberCatalog.COMBOS）
 │   │   ├── remote/                 # P6：网络层（静态 JSON 只读，OSS 托管）
-│   │   │   ├── ApiEndpoints.kt     # BASE_URL + latest / flash / week / app_version 端点
-│   │   │   ├── ScheduleApiClient.kt      # OkHttp GET 封装（10s 超时，异常静默）
+│   │   │   ├── ApiEndpoints.kt     # BASE_URL + latest / flash / week / app_version / asoul.love ICS 端点
+│   │   │   ├── ScheduleApiClient.kt      # OkHttp GET 封装（10s 超时，异常静默；ICS 请求带浏览器 UA 绕 Cloudflare）
 │   │   │   ├── LatestScheduleFetcher.kt  # 周程表拉取：版本比对 → 缓存 → 按周替换；往日周按需拉取
-│   │   │   ├── ScheduleSyncManager.kt    # 前台轮询（周程表 1h / 突击 5min）+ 回前台即时拉取
+│   │   │   ├── ScheduleSyncManager.kt    # 前台轮询（周程表 1h / 突击 5min / asoul.love 1h）+ 回前台即时拉取
+│   │   │   ├── IcsParser.kt        # 额外数据源：asoul.love ICS 解析 + 领域映射（类型标签/成员/来源链接）
 │   │   │   └── dto/                # LatestScheduleDto / FlashDto / AppVersionDto + 领域映射
+│   │   ├── AsoulLoveRepository.kt  # 额外数据源仓库：拉取 → 解析 → 缓存 → emit（严格 1 小时拉取间隔）
+│   │   ├── ScheduleMerger.kt       # 双源合并：OSS 为主，ICS 补漏 + 类型标签（同场次 ±15min + 成员交集）
 │   │   └── update/                 # v1.4 App 更新：AppUpdateStore（跳过/提示节流）
 │   │                               # + AppUpdateChecker（版本比对） + AppUpdater（下载+安装）
 │   ├── ocr/
@@ -105,7 +115,8 @@ app/src/main/
 │   │   ├── components/        # HeaderBanner、MemberSelectorRow、WeekNavigator、SwipeHint
 │   │   │                      # （手势提示条/引导浮层）、ScheduleItem/LiveEventCard、DayEmptyState、
 │   │   │                      # FlashLiveCard（突击卡片，日历内嵌模式）
-│   │   ├── dialog/            # ScheduleDetailDialog（直播详情弹窗）+ AppUpdateDialog（v1.4 更新弹窗）
+│   │   ├── dialog/            # ScheduleDetailDialog（直播详情）+ AppUpdateDialog（更新弹窗）
+│   │   │                      # + AboutDialog（版本 / 数据来源 / 鸣谢 / 反馈联系，Header 右上角「i」入口）
 │   │   └── theme/             # AsoulTheme + 成员主题色
 │   └── util/
 │       └── BilibiliLauncher.kt  # B 站直播间 / 直播录像 / 动态唤起（scheme 优先，网页兜底）
@@ -117,7 +128,7 @@ app/src/main/
 
 | 权限 | 用途 |
 | --- | --- |
-| `INTERNET` | 拉取周程表 / 突击直播 / 往日周归档 / 版本清单 JSON（OSS 托管，只读） |
+| `INTERNET` | 拉取周程表 / 突击直播 / 往日周归档 / 版本清单 JSON（OSS 托管）与 asoul.love 日历订阅（只读） |
 | `READ_CALENDAR` / `WRITE_CALENDAR` | 将直播日程写入系统日历并设置提醒（运行时申请） |
 | `REQUEST_INSTALL_PACKAGES` | App 内更新：Android 8.0+ 安装下载的 APK 需「安装未知应用」授权（缺失时跳转系统设置页引导） |
 
@@ -134,7 +145,7 @@ app/src/main/
 # 安装运行（连接设备后）
 ./gradlew :app:installDebug
 
-# 单元测试（测试源集仅含占位用例，依赖已就位：JUnit4 / Espresso / Compose UI Test）
+# 单元测试（含 ICS 解析器与双源合并的离线单测，共 16 项）
 ./gradlew :app:testDebugUnitTest
 ```
 
@@ -157,6 +168,7 @@ app/src/main/
 - **P6 客户端对接**：✅ 已完成 —— OkHttp 拉取静态 JSON、kotlinx-serialization 解析、文件缓存 + 版本比对、断网兜底、前台轮询（周程表 1h / 突击直播 5min）、往日周归档按需拉取。（`data/remote/ApiEndpoints.kt` 中 `BASE_URL` 已指向阿里云 OSS。）
 - **P10 突击直播**：✅ 已完成 —— 突击直播按开播时间并入日历（状态标签 / 呼吸动效 / 待确认徽标 / 点击打开来源 / 新条目 Snackbar 提醒），v1.5 起替代原顶部固定区块。
 - **App 内更新（v1.4）**：✅ 已完成 —— 启动静默检查 OSS 版本清单，弹窗支持「立即更新 / 跳过此版本 / 稍后」。
+- **额外数据源 + 类型标签（asoul.love ICS）**：✅ 已完成 —— ① 接入 `calendar.ics`（严格 1 小时拉取间隔）：补齐纯文字预告型突击直播，同场次以 OSS 为准；② 直播标签按对方体系重划为 类型（日常/节目/突击/2D）+ 场次（团播/单播/双人）；③ 成员筛选支持多选与组合快捷项（枝江 / A-SOUL / 小心思 / 嘉贝 / 乃贝 / 琳嘉）。
 
 ---
 

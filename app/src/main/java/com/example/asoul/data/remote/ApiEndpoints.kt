@@ -32,4 +32,12 @@ object ApiEndpoints {
      * 文件未发布时返回 404（调用方静默处理，不影响现有数据）。
      */
     fun weekUrl(weekStart: LocalDate): String = BASE_URL + "week/$weekStart.json"
+
+    /**
+     * 额外数据源：asoul.love 日历订阅（ICS）。
+     *
+     * 提供我们自建管道抓不到的「文字预告型突击直播」与类型标签（节目/日常/突击/2D）；
+     * 按对方要求低频访问：**拉取间隔 ≥ 1 小时**（与其 `REFRESH-INTERVAL:PT1H` 一致）。
+     */
+    const val ASOUL_LOVE_ICS = "https://asoul.love/calendar.ics"
 }

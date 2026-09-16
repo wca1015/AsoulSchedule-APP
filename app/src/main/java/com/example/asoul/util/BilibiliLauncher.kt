@@ -100,6 +100,36 @@ object BilibiliLauncher {
     /** B 站客户端动态（feed）scheme。 */
     private fun dynamicScheme(dynamicId: String): String = "bilibili://feed/$dynamicId"
 
+    /**
+     * 打开 B 站用户个人空间（「关于」弹窗的反馈入口）。
+     *
+     * 与 [openLiveRoom] 相同的策略：优先 `bilibili://space/{uid}` 唤起客户端，
+     * 未安装时回退浏览器打开网页版。
+     */
+    fun openSpace(context: Context, uid: Long): Boolean {
+        if (tryLaunch(context, "bilibili://space/$uid")) return true
+        if (tryLaunch(context, "https://space.bilibili.com/$uid")) {
+            Toast.makeText(context, "未检测到 B 站客户端，已用浏览器打开", Toast.LENGTH_SHORT).show()
+            return true
+        }
+        Toast.makeText(context, "无法打开链接", Toast.LENGTH_SHORT).show()
+        return false
+    }
+
+    /**
+     * 打开任意网页链接（浏览器；若系统中有应用注册了对应 intent-filter 也可能由其接管）。
+     *
+     * 用于「关于」弹窗与鸣谢行的外链跳转（如枝江站 https://asoul.love）。
+     *
+     * @return 是否成功唤起。
+     */
+    fun openUrl(context: Context, url: String?): Boolean {
+        if (url.isNullOrBlank()) return false
+        if (tryLaunch(context, url)) return true
+        Toast.makeText(context, "无法打开链接", Toast.LENGTH_SHORT).show()
+        return false
+    }
+
     private fun tryLaunch(context: Context, uri: String): Boolean = try {
         context.startActivity(
             Intent(Intent.ACTION_VIEW, Uri.parse(uri)).apply {
