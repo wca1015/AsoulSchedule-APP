@@ -18,8 +18,7 @@ val keystoreProps = Properties().apply {
 }
 
 // ===== 应用版本（单一来源）=====
-// build 与发版产物命名（app-release-{versionName}.apk）共用，
-// 与 GitHub Release 资产名约定一致（upload_app.py 拼接的下载地址即该文件名）。
+// build 与发版产物命名共用（发版产物固定为「枝江直播日历.apk」，不带版本号）。
 val appVersionCode = 7
 val appVersionName = "1.6"
 
@@ -71,18 +70,18 @@ android {
 }
 
 // ===== 发版产物命名 =====
-// assembleRelease 完成后，把通用名 app-release.apk 复制一份带版本号的文件到
+// assembleRelease 完成后，把通用名 app-release.apk 复制一份为发版固定文件名到
 // **独立目录**（避免与其他 AGP 任务的输出目录冲突）：
-//   app/build/outputs/apk/publish/app-release-{versionName}.apk
+//   app/build/outputs/apk/publish/枝江直播日历.apk
 // 发版时直接上传该文件即可（无需手动改名），与 upload_app.py 约定一致。
 val releaseApkSource = layout.buildDirectory.dir("outputs/apk/release")
 val releaseApkPublishDir = layout.buildDirectory.dir("outputs/apk/publish")
 
 val renameReleaseApk by tasks.registering(Copy::class) {
     // 注意：仅供局部变量使用，不要引用脚本级属性（否则配置缓存无法序列化）
-    val targetName = "app-release-$appVersionName.apk"
+    val targetName = "枝江直播日历.apk"
     group = "build"
-    description = "把 Release APK 复制为带版本号的文件名（$targetName）"
+    description = "把 Release APK 复制为发版文件名（$targetName）"
     from(releaseApkSource.map { it.file("app-release.apk") })
     into(releaseApkPublishDir)
     rename { targetName }
