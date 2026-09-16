@@ -156,8 +156,8 @@ app/src/main/
 
 ### 📦 发布新版本
 
-1. 更新 `app/build.gradle.kts` 的 `versionCode` / `versionName`，执行 `assembleRelease`（产物 `app/build/outputs/apk/release/app-release.apk`）
-2. 创建 GitHub Release 并上传 APK（资产名固定为 `app-release-{versionName}.apk`）
+1. 更新 `app/build.gradle.kts` 顶部的 `appVersionCode` / `appVersionName`（版本号单一来源），执行 `assembleRelease`
+2. 上传**自动命名的产物**到 GitHub Release：`app/build/outputs/apk/publish/app-release-{versionName}.apk`（构建脚本已按约定命名，无需手动改名）
 3. 运行服务端发版流程更新 OSS 版本清单（`upload_app.py` / `upload_app.yml`，详见 [`Server/README.md`](Server/README.md)）
 
 客户端启动后拉取 `app_version.json`，发现更高版本即弹更新提示。
