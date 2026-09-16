@@ -2,7 +2,7 @@
 
 一个面向 **A-SOUL** 粉丝的直播周程表日历 App：查看每周直播安排、突击直播自动并入日历、左右划切周回看往期直播录像、按成员/团播（含一期双人组合）过滤、一键写入系统日历、唤起 B 站直播间，并支持 App 内检查更新；同时为「周程表海报 OCR 自动识别」预留了完整的解析管线。
 
-> 应用名：`Asoul` ｜ 包名：`com.example.asoul` ｜ 当前版本：`1.5 (versionCode 6)` ｜ 数据源：同仓库 [`Server/`](Server/README.md) 产出的静态 JSON（阿里云 OSS）
+> 应用名：`Asoul` ｜ 包名：`com.example.asoul` ｜ 当前版本：`1.6 (versionCode 7)` ｜ 数据源：同仓库 [`Server/`](Server/README.md) 产出的静态 JSON（阿里云 OSS）+ 枝江站 `asoul.love` 日历订阅
 
 ---
 
