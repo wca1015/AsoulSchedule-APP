@@ -143,8 +143,24 @@ object MemberCatalog {
     val SCHEDULABLE: List<Member> = FIRST_GEN + SECOND_GEN + GROUP
 
     /**
-     * 组合快捷筛选预设（对齐 asoul.love 页面的「组合」维度）：
-     * 点一下 = 同时选中多名成员（OR 语义：任一参与即显示）。
+     * 按参与成员推断团播分组（ICS 解析与双源合并共用）：
+     * 一期三人 → Asoul 团播；心宜 & 思诺 → 心宜思诺团播；全员 5 人 → 枝江综艺；其余 → 非分组。
+     */
+    fun inferGroupType(memberIds: Collection<String>): GroupType {
+        val ids = memberIds.toSet()
+        return when {
+            ids == setOf("bella", "diana", "eileen") -> GroupType.ASOUL
+            ids == setOf("xinyi", "sinuo") -> GroupType.XINYI_SINUO
+            ids.size >= 5 -> GroupType.ZHIJIANG_VARIETY
+            else -> GroupType.NONE
+        }
+    }
+
+    /**
+     * 组合快捷筛选预设（见 [MemberCatalog.COMBOS]）。
+     *
+     * 语义：点一下 = 只看这几位的**同台多人场**（全部参与者都在组合内），
+     * 不会把各自单播混进来（由 `ScheduleFilter.ComboFilter` 实现）。
      */
     val COMBOS: List<MemberCombo> = listOf(
         MemberCombo("zhijiang", "枝江", listOf("bella", "diana", "eileen", "xinyi", "sinuo")),

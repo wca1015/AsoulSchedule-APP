@@ -1,7 +1,9 @@
 package com.example.asoul.data
 
+import com.example.asoul.data.model.GroupType
 import com.example.asoul.data.model.LiveCategory
 import com.example.asoul.data.model.LiveSchedule
+import com.example.asoul.data.model.MemberCatalog
 import com.example.asoul.data.model.Weeks
 import java.time.Duration
 import java.time.LocalDate
@@ -40,15 +42,48 @@ object ScheduleMerger {
             } else {
                 used += index
                 val extra = ics[index]
-                item.copy(
-                    // ICS 提供类型标签（新体系）；OSS 自带的类型（如有）优先保留
-                    category = if (item.category != LiveCategory.UNKNOWN) item.category else extra.category,
-                    sourceUrl = item.sourceUrl ?: extra.sourceUrl,
+                adoptIcsParticipants(
+                    item.copy(
+                        // ICS 提供类型标签（新体系）；OSS 自带的类型（如有）优先保留
+                        category = if (item.category != LiveCategory.UNKNOWN) item.category else extra.category,
+                        sourceUrl = item.sourceUrl ?: extra.sourceUrl,
+                    ),
+                    extra,
                 )
             }
         }
         val additions = ics.filterIndexed { index, _ -> index !in used }
         return (merged + additions).sortedWith(compareBy({ it.date }, { it.time }))
+    }
+
+    /**
+     * 用 ICS 的参与成员收窄 OSS 的「分组粗粒度展开」。
+     *
+     * 服务端对 `member = unknown` 的团播按分组成员**全量展开**——例如「命题KTV」
+     * （心宜思诺节目）被标为枝江综艺 → 展开为 5 人；ICS 的成员列表更精确
+     * （心宜 思诺），收窄后才能被「小心思」等组合筛选中。
+     *
+     * 仅在信息不冲突（ICS 成员是 OSS 展开集合的**真子集**且 ≥2 人）时采用；
+     * 单播与一期双人（服务端已给精确参与成员）不覆盖，保持「同场次以 OSS 为准」的总原则。
+     */
+    private fun adoptIcsParticipants(oss: LiveSchedule, ics: LiveSchedule): LiveSchedule {
+        if (oss.groupType == GroupType.NONE || oss.memberId != null) return oss
+        val icsIds = ics.participantIds
+        if (icsIds.size < 2) return oss
+        val allowed = oss.resolvedParticipantIds().toSet()
+        if (icsIds.toSet() == allowed || !allowed.containsAll(icsIds)) return oss
+        val inferred = MemberCatalog.inferGroupType(icsIds)
+        val members = icsIds.mapNotNull { id -> MemberCatalog.ALL.firstOrNull { it.id == id } }
+        val displayName = when {
+            inferred != GroupType.NONE -> inferred.label
+            members.size > 1 -> members.joinToString(" & ") { it.name }
+            else -> oss.memberName
+        }
+        return oss.copy(
+            participantIds = icsIds,
+            groupType = inferred,
+            memberName = displayName,
+        )
     }
 
     private fun matches(a: LiveSchedule, b: LiveSchedule): Boolean {

@@ -47,8 +47,9 @@ import com.example.asoul.data.model.ScheduleFilter
  *
  * 两行筛选（对齐 asoul.love 日历页的筛选维度）：
  * 1. 头像行：「全部」+ 5 位成员头像 + 团播分组头像——成员支持**多选**（点一下加入 / 再点取消），
- *    选中多人时显示「任一成员参与」的单播与团播（与对方页面的 include 语义一致）
- * 2. 组合行：枝江 / A-SOUL / 小心思 / 嘉贝 / 乃贝 / 琳嘉——点一下 = 同时选中多名成员
+ *    选中多人时显示「任一成员参与」的单播与团播
+ * 2. 组合行：枝江 / A-SOUL / 小心思 / 嘉贝 / 乃贝 / 琳嘉——点一下 = 只看这几位的**同台多人场**
+ *    （双人/团播；全部参与者都在组合内，不夹杂各自单播）
  */
 @Composable
 fun MemberSelectorRow(
@@ -108,7 +109,7 @@ fun MemberSelectorRow(
                 }
             }
         }
-        // 组合快捷筛选（点一下 = 同时选中多名成员）
+        // 组合快捷筛选（点一下 = 只看这几位的同台多人场，不含各自单播）
         LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
@@ -118,14 +119,16 @@ fun MemberSelectorRow(
         ) {
             MemberCatalog.COMBOS.forEach { combo ->
                 item(key = "combo_${combo.id}") {
-                    val isSelected = selectedMemberIds == combo.memberIds.toSet()
+                    val isSelected =
+                        filter is ScheduleFilter.ComboFilter &&
+                            filter.memberIds == combo.memberIds.toSet()
                     ComboChip(
                         combo = combo,
                         isSelected = isSelected,
                     ) {
                         onFilterChange(
                             if (isSelected) ScheduleFilter.All
-                            else ScheduleFilter.MemberFilter(combo.memberIds.toSet()),
+                            else ScheduleFilter.ComboFilter(combo.memberIds.toSet()),
                         )
                     }
                 }

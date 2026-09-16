@@ -191,12 +191,7 @@ fun IcsEvent.toLiveSchedule(): LiveSchedule? {
     val members = memberIds.mapNotNull { id -> MemberCatalog.ALL.firstOrNull { it.id == id } }
 
     // 团播分组推断（对齐服务端语义）：一期三人 / 心宜思诺 / 全员
-    val groupType = when {
-        memberIds.toSet() == setOf("bella", "diana", "eileen") -> GroupType.ASOUL
-        memberIds.toSet() == setOf("xinyi", "sinuo") -> GroupType.XINYI_SINUO
-        memberIds.size >= 5 -> GroupType.ZHIJIANG_VARIETY
-        else -> GroupType.NONE
-    }
+    val groupType = MemberCatalog.inferGroupType(memberIds)
 
     val displayName = when {
         groupType != GroupType.NONE -> groupType.label

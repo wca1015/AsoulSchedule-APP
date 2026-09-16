@@ -475,10 +475,12 @@ private sealed interface DayRow {
     }
 }
 
-/** 突击直播是否匹配当前成员/团播过滤（与周程表条目同规则：All 全显、按成员过滤、多选任一命中）。 */
+/** 突击直播是否匹配当前筛选（突击为单人场：仅「全部」或选中该成员时展示）。 */
 private fun FlashLiveEvent.matchesFlashFilter(filter: ScheduleFilter): Boolean = when (filter) {
     ScheduleFilter.All -> true
     is ScheduleFilter.MemberFilter -> member?.id?.let { it in filter.memberIds } == true
+    // 组合筛选针对「同台多人场」，突击（单人）不属于任何组合场次
+    is ScheduleFilter.ComboFilter -> false
     is ScheduleFilter.GroupFilter -> false
 }
 

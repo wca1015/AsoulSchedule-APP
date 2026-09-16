@@ -3,10 +3,13 @@ package com.example.asoul.data
 import com.example.asoul.data.model.GroupType
 import com.example.asoul.data.model.LiveCategory
 import com.example.asoul.data.model.LiveSchedule
+import com.example.asoul.data.model.ScheduleFilter
 import com.example.asoul.data.model.ScheduleSource
+import com.example.asoul.data.model.matches
 import java.time.LocalDate
 import java.time.LocalTime
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -131,5 +134,36 @@ class ScheduleMergerTest {
         val outside = inside.copy(date = LocalDate.of(2026, 9, 21))
         val filtered = ScheduleMerger.withinWeek(listOf(inside, outside), weekStart)
         assertEquals(listOf("本周"), filtered.map { it.title })
+    }
+
+    @Test
+    fun `用 ICS 精确成员收窄服务端的分组粗粒度展开（命题KTV）`() {
+        // 服务端：命题KTV 被标为枝江综艺（member=unknown）→ 按分组展开为 5 人
+        val ossItem = LiveSchedule(
+            date = date,
+            time = LocalTime.of(20, 0),
+            memberName = GroupType.ZHIJIANG_VARIETY.label,
+            memberId = null,
+            title = "命题KTV",
+            groupType = GroupType.ZHIJIANG_VARIETY,
+            source = ScheduleSource.API,
+            category = LiveCategory.UNKNOWN,
+        )
+        // ICS：成员列表精确为 心宜 思诺
+        val icsItem = ics(
+            "20:00", null, "命题KTV", LiveCategory.SHOW,
+            participantIds = listOf("xinyi", "sinuo"),
+            groupType = GroupType.XINYI_SINUO,
+        )
+        val merged = ScheduleMerger.merge(listOf(ossItem), listOf(icsItem))
+
+        assertEquals(1, merged.size)
+        val item = merged.first()
+        assertEquals(GroupType.XINYI_SINUO, item.groupType)
+        assertEquals(listOf("xinyi", "sinuo"), item.participantIds)
+        assertEquals("心宜思诺团播", item.memberName)
+        assertEquals(LiveCategory.SHOW, item.category)
+        // 收窄后「小心思」组合可筛中，且不再包含全体成员
+        assertTrue(item.matches(ScheduleFilter.ComboFilter(setOf("xinyi", "sinuo"))))
     }
 }
